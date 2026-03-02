@@ -27,10 +27,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
 
-      - name: Check Docker installation
-        run: |
-          docker --version || (echo "❌ Docker is not installed" && exit 1)
-          docker info || (echo "❌ Docker daemon is not running" && exit 1)
+      # - name: Check Docker installation
+      #   run: |
+      #     docker --version || (echo "❌ Docker is not installed" && exit 1)
+      #     docker info || (echo "❌ Docker daemon is not running" && exit 1)
 
       - name: Stop and remove existing container
         run: |
