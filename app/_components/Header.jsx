@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "../../components/ui/button";
 import { useState, useEffect, useRef } from "react";
 import { Menu, X } from "lucide-react";
+import Image from "next/image";
 import Logo from "../_components/Logo";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -13,6 +14,21 @@ import {
 } from "../../components/ui/alert-dialog";
 import { getCourses } from "../services/apiCourses";
 import RegistrationForm from "./RegistrationForm";
+
+const t = {
+  nav: {
+    summer: "საზაფხულო სკოლა",
+    courses: "კურსები",
+    offer: "შეთავაზება",
+    blog: "ბლოგი",
+    about: "ჩვენ შესახებ",
+    contact: "კონტაქტი",
+    register: "რეგისტრაცია",
+  },
+  dialog: {
+    title: "კურსზე რეგისტრაცია",
+  },
+};
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -27,25 +43,22 @@ export default function Header() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Check URL parameters on mount to auto-open registration dialog
+  const isCourseOrOfferPage =
+    pathname.startsWith("/courses/") || pathname.startsWith("/offer/");
+  const isSummerPage = pathname === "/summer";
+
   useEffect(() => {
     const registrationParam = searchParams.get("registration");
-    // Don't open header registration on course pages since CourseClient handles it
-    const isCourseOrOfferPage =
-      pathname.startsWith("/courses/") || pathname.startsWith("/offer/");
-
-    if (registrationParam === "true" && !isCourseOrOfferPage) {
+    const summerRegistrationParam = searchParams.get("summer_registration");
+    if (registrationParam === "true" && !isCourseOrOfferPage && !isSummerPage && summerRegistrationParam !== "true") {
       setIsRegistrationOpen(true);
     }
   }, [searchParams, pathname]);
 
-  // Handle fullscreen check on initial render and window resize
   useEffect(() => {
     const checkViewportWidth = () => {
       const isMobile = window.innerWidth < 1024;
-      if (isFullscreen !== isMobile) {
-        setIsFullscreen(isMobile);
-      }
+      if (isFullscreen !== isMobile) setIsFullscreen(isMobile);
     };
 
     if (!fullscreenChecked.current) {
@@ -54,26 +67,18 @@ export default function Header() {
     }
 
     window.addEventListener("resize", checkViewportWidth);
-    return () => {
-      window.removeEventListener("resize", checkViewportWidth);
-    };
+    return () => window.removeEventListener("resize", checkViewportWidth);
   }, [isFullscreen]);
 
-  // Fetch courses when the registration dialog opens
   useEffect(() => {
-    if (isRegistrationOpen && courses.length === 0) {
-      fetchCourses();
-    }
+    if (isRegistrationOpen && courses.length === 0) fetchCourses();
   }, [isRegistrationOpen]);
 
-  // Function to fetch courses from Supabase
   const fetchCourses = async () => {
     setIsCoursesLoading(true);
     try {
       const coursesData = await getCourses();
-      if (coursesData && coursesData.length > 0) {
-        setCourses(coursesData);
-      }
+      if (coursesData?.length > 0) setCourses(coursesData);
     } catch (error) {
       console.error("Error fetching courses:", error);
     } finally {
@@ -81,62 +86,67 @@ export default function Header() {
     }
   };
 
-  // Function to close mobile menu when a link is clicked
-  const handleLinkClick = () => {
-    setMobileMenuOpen(false);
-  };
+  const handleLinkClick = () => setMobileMenuOpen(false);
 
-  // ბეზოპასნი ფუნქცია მენიუს გასახსნელად, იყენებს setTimeout-ს რომ მოხდეს ახალი ციკლში
   const safelyToggleMobileMenu = () => {
-    setTimeout(() => {
-      setMobileMenuOpen((prev) => !prev);
-    }, 0);
+    setTimeout(() => setMobileMenuOpen((prev) => !prev), 0);
   };
 
-  // ბეზოპასნი ფუნქცია რეგისტრაციის დიალოგის გასახსნელად
   const safelySetRegistrationOpen = (open) => {
-    // Don't allow header registration on course/offer pages
-    const isCourseOrOfferPage =
-      pathname.startsWith("/courses/") || pathname.startsWith("/offer/");
-    if (isCourseOrOfferPage && open) {
-      return; // Block opening header registration on course/offer pages
-    }
+    if ((isCourseOrOfferPage || isSummerPage) && open) return;
+    if (open && new URLSearchParams(window.location.search).get("summer_registration") === "true") return;
 
     setTimeout(() => {
       setIsRegistrationOpen(open);
 
-      // Update URL based on dialog state (only on non-course/offer pages)
       if (!isCourseOrOfferPage) {
         const currentUrl = new URL(window.location);
-        if (open) {
-          currentUrl.searchParams.set("registration", "true");
-        } else {
-          currentUrl.searchParams.delete("registration");
-        }
-
-        // Update URL without page reload
+        open
+          ? currentUrl.searchParams.set("registration", "true")
+          : currentUrl.searchParams.delete("registration");
         window.history.pushState({}, "", currentUrl.toString());
       }
     }, 0);
   };
 
-  // Modal content style based on screen size
-  const getDialogContentStyle = () => {
-    return isFullscreen
-      ? {
-          border: "none",
-          borderRadius: "0px",
-          maxHeight: "100vh",
-          overflowY: "auto",
-        }
-      : {
-          maxHeight: "90vh",
-          height: "auto",
-          borderRadius: "20px",
-          border: "none",
-          overflowY: "hidden",
-        };
-  };
+  const getDialogContentStyle = () =>
+    isFullscreen
+      ? { border: "none", borderRadius: "0px", maxHeight: "100vh", overflowY: "auto" }
+      : { maxHeight: "90vh", height: "auto", borderRadius: "20px", border: "none", overflowY: "hidden" };
+
+  const navLinks = [
+    { href: "/courses", label: t.nav.courses },
+    { href: "/offer",   label: t.nav.offer   },
+    { href: "/blog",    label: t.nav.blog    },
+    { href: "/about",   label: t.nav.about   },
+    { href: "/contact", label: t.nav.contact },
+  ];
+
+  const RegistrationDialog = () => (
+    <AlertDialog open={isRegistrationOpen} onOpenChange={safelySetRegistrationOpen}>
+      <AlertDialogTrigger asChild>
+        <Button className="w-[156px] h-[48px] pt-[11px]">{t.nav.register}</Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent
+        className={`p-0 overflow-hidden ${
+          isFullscreen
+            ? "rounded-none w-screen h-screen max-w-none max-h-none"
+            : "rounded-[20px] w-[95vw] max-w-[1220px]"
+        } bg-white shadow-none animate-in fade-in-0 zoom-in-95 duration-300`}
+        style={getDialogContentStyle()}
+      >
+        <AlertDialogTitle className="sr-only text-[#434A53]">
+          {t.dialog.title}
+        </AlertDialogTitle>
+        <RegistrationForm
+          onCancel={() => setIsRegistrationOpen(false)}
+          isFullscreen={isFullscreen}
+          courses={courses}
+          isCoursesLoading={isCoursesLoading}
+        />
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   return (
     <header className="fixed max-lg:px-4 max-md:px-0 w-full top-0 left-0 z-50">
@@ -144,85 +154,27 @@ export default function Header() {
         <Logo />
 
         <ul className="hidden lg:flex caps-text gap-[36px] font-medium max-xl:text-[14px] text-base items-center">
-          <li className="mt-[4px]">
-            <Link
-              href="/courses"
-              className={`leading-[24px] hover:text-primary-500 duration-300 transition-all ${
-                pathname === "/courses" ? "text-primary-500" : ""
-              }`}
-            >
-              კურსები
-            </Link>
-          </li>
-          <li className="mt-[4px]">
-            <Link
-              href="/offer"
-              className={`leading-[24px] hover:text-primary-500 duration-300 transition-all ${
-                pathname === "/offer" ? "text-primary-500" : ""
-              }`}
-            >
-              შეთავაზება{" "}
-            </Link>
-          </li>
-          <li className="mt-[4px]">
-            <Link
-              href="/blog"
-              className={`leading-[24px] hover:text-primary-500 duration-300 transition-all ${
-                pathname === "/blog" ? "text-primary-500" : ""
-              }`}
-            >
-              ბლოგი
-            </Link>
-          </li>
-          <li className="mt-[4px]">
-            <Link
-              href="/about"
-              className={`leading-[24px] hover:text-primary-500 duration-300 transition-all ${
-                pathname === "/about" ? "text-primary-500" : ""
-              }`}
-            >
-              ჩვენ შესახებ
-            </Link>
-          </li>
-          <li className="mt-[4px]">
-            <Link
-              href="/contact"
-              className={`leading-[24px] hover:text-primary-500 duration-300 transition-all ${
-                pathname === "/contact" ? "text-primary-500" : ""
-              }`}
-            >
-              კონტაქტი
-            </Link>
-          </li>
           <li>
-            <AlertDialog
-              open={isRegistrationOpen}
-              onOpenChange={safelySetRegistrationOpen}
-            >
-              <AlertDialogTrigger asChild>
-                <Button className="w-[156px] h-[48px] pt-[11px]">
-                  რეგისტრაცია
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent
-                className={`p-0 overflow-hidden ${
-                  isFullscreen
-                    ? "rounded-none w-screen  h-screen max-w-none max-h-none"
-                    : "rounded-[20px] w-[95vw] max-w-[1220px]"
-                } bg-white shadow-none animate-in fade-in-0 zoom-in-95 duration-300`}
-                style={getDialogContentStyle()}
+            <Link href="/summer" className="group">
+              <Image src="/summer_logo.png" alt={t.nav.summer} width={508} height={360} className="object-contain transition-all duration-300 group-hover:[filter:drop-shadow(0_0_6px_#8471D9)_brightness(0.92)_saturate(1.2)]" style={{ width: "127px", height: "56px" }} />
+            </Link>
+          </li>
+
+          {navLinks.map(({ href, label, icon, className }) => (
+            <li key={href} className="mt-[4px]">
+              <Link
+                href={href}
+                className={`leading-[24px] hover:text-primary-500 duration-300 transition-all ${
+                  pathname === href ? "text-primary-500" : ""
+                } ${className || ""}`}
               >
-                <AlertDialogTitle className="sr-only text-[#434A53]">
-                  კურსზე რეგისტრაცია
-                </AlertDialogTitle>
-                <RegistrationForm
-                  onCancel={() => setIsRegistrationOpen(false)}
-                  isFullscreen={isFullscreen}
-                  courses={courses}
-                  isCoursesLoading={isCoursesLoading}
-                />
-              </AlertDialogContent>
-            </AlertDialog>
+                {icon}{label}
+              </Link>
+            </li>
+          ))}
+
+          <li>
+            <RegistrationDialog />
           </li>
         </ul>
 
@@ -233,71 +185,34 @@ export default function Header() {
         </div>
       </nav>
 
+      {/* Mobile menu */}
       {mobileMenuOpen && (
         <div className="lg:hidden max-sm:max-w-[95%] mx-auto container mt-2 bg-white rounded-[16px] nav-shadow p-4 animate-in slide-in-from-top duration-300">
-          <ul className="flex caps-text flex-col gap-3 font-medium">
+          <ul  className="flex caps-text flex-col gap-3 font-medium">
+
             <li>
-              <Link
-                href="/courses"
-                className={`block py-2 text-[14px] leading-[20px] ${
-                  pathname === "/courses" ? "text-primary-500" : ""
-                }`}
-                onClick={handleLinkClick}
-              >
-                კურსები
+              <Link href="/summer" onClick={handleLinkClick} className="group">
+                <Image src="/summer_logo.png" alt={t.nav.summer} width={508} height={360} className="object-contain transition-all duration-300 group-hover:[filter:drop-shadow(0_0_6px_#8471D9)_brightness(0.92)_saturate(1.2)]" style={{ width: "127px", height: "56px" }} />
               </Link>
             </li>
-            <li>
-              <Link
-                href="/offer"
-                className={`block py-2 text-[14px] leading-[20px] ${
-                  pathname === "/offer" ? "text-primary-500" : ""
-                }`}
-                onClick={handleLinkClick}
-              >
-                შეთავაზება
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/blog"
-                className={`block py-2 text-[14px] leading-[20px] ${
-                  pathname === "/blog" ? "text-primary-500" : ""
-                }`}
-                onClick={handleLinkClick}
-              >
-                ბლოგი
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/about"
-                className={`block py-2 text-[14px] leading-[20px] ${
-                  pathname === "/about" ? "text-primary-500" : ""
-                }`}
-                onClick={handleLinkClick}
-              >
-                ჩვენ შესახებ
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/contact"
-                className={`block py-2 text-[14px] leading-[20px] ${
-                  pathname === "/contact" ? "text-primary-500" : ""
-                }`}
-                onClick={handleLinkClick}
-              >
-                კონტაქტი
-              </Link>
-            </li>
+
+            {navLinks.map(({ href, label, icon ,className }) => (
+              <li key={href} className="mt-[4px]">
+                <Link
+                  href={href}
+                  className={`leading-[24px] hover:text-primary-500 duration-300 transition-all ${
+                    pathname === href ? "text-primary-500" : ""
+                  } ${className || ""}`}
+                >
+                  {icon}{label}
+                </Link>
+              </li>
+            ))}
+            
             <li className="py-2">
-              <AlertDialog
-                open={isRegistrationOpen}
-                onOpenChange={safelySetRegistrationOpen}
-              >
+              <AlertDialog open={isRegistrationOpen} onOpenChange={safelySetRegistrationOpen}>
                 <AlertDialogTrigger asChild>
-                  <Button className="w-full text-[14px]">რეგისტრაცია</Button>
+                  <Button className="w-full text-[14px]">{t.nav.register}</Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent
                   className={`p-0 overflow-hidden ${
@@ -308,7 +223,7 @@ export default function Header() {
                   style={getDialogContentStyle()}
                 >
                   <AlertDialogTitle className="sr-only">
-                    კურსზე რეგისტრაცია
+                    {t.dialog.title}
                   </AlertDialogTitle>
                   <RegistrationForm
                     onCancel={() => setIsRegistrationOpen(false)}

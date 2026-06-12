@@ -75,3 +75,44 @@ export async function createUser(userData) {
     throw error;
   }
 }
+
+// Create a new user in the "summer_users_form" table
+export async function createSummerUser(userData) {
+  try {
+    if (!/^\d{11}$/.test(userData.socialId)) {
+      throw new Error("პირადი ნომერი უნდა შეიცავდეს ზუსტად 11 ციფრს");
+    }
+
+    const operation = supabase.from("summer_users_form").insert(
+      [
+        {
+          firstName:     userData.firstName,
+          lastName:      userData.lastName,
+          email:         userData.email,
+          phoneNumber:   userData.phoneNumber,
+          birth_date:    userData.birth_date,
+          socialid:      userData.socialId,
+          choosedCourse: userData.choosedCourse,
+          choosedMedia:  userData.choosedMedia,
+          created_at:    new Date().toISOString(),
+        },
+      ],
+      { returning: "minimal" }
+    );
+
+    const { data, error } = await executeWithTimeout(
+      operation,
+      15000,
+      "Create summer user"
+    );
+
+    if (error) {
+      throw handleSupabaseError(error, "Create summer user");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error in createSummerUser:", error);
+    throw error;
+  }
+}
